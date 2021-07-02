@@ -27,6 +27,7 @@
                 "
                 placeholder="Например DOGE"
               />
+              <label class="error-label red">Такой тикер уже добавлен</label>
             </div>
           </div>
         </div>
@@ -194,7 +195,7 @@ export default {
   },
 
   methods: {
-    add() {
+    add(name) {
       const currenTicker = {
         name: this.ticker,
         price: "-",
@@ -206,7 +207,6 @@ export default {
           `https://min-api.cryptocompare.com/data/price?fsym=${currenTicker.name}&tsyms=USD&api_key=6138e504f3195d7a7e9a501c99b2fc820243ef999b2f010c280f63805b44d7b6`
         );
         const data = await f.json();
-        console.log(data);
         this.tickers.find((t) => t.name === currenTicker.name).price =
           data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
         currenTicker.price = data.USD;
@@ -216,6 +216,24 @@ export default {
         }
       }, 3000);
       this.ticker = "";
+
+      console.log(this.tickers);
+      function checkCoin() {
+        let label = document.querySelector(".error-label");
+        // console.log('here', this.tickers.target[0].name);
+        if (this.tickers.length > 0) {
+          for (let index = 0; index < this.tickers.length; index++) {
+            const element = this.tickers[index].name;
+            console.log(element);
+            if (name == element) {
+              label.classList.add("active");
+            } else {
+              label.classList.remove("active");
+            }
+          }
+        }
+      }
+      checkCoin();
     },
 
     select(ticker) {
@@ -230,7 +248,6 @@ export default {
     normalizeGraph() {
       const maxValue = Math.max(...this.graph);
       const minValue = Math.min(...this.graph);
-      console.log(this.graph);
       return this.graph.map(
         (price) => 5 + ((price - minValue) * 95) / (maxValue - minValue)
       );
@@ -238,5 +255,3 @@ export default {
   },
 };
 </script>
-
-<style src="./style.css"></style>
