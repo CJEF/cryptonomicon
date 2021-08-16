@@ -143,7 +143,7 @@
             @click="select(t)"
             :key="t.name"
             :class="{
-              'border-4': sel === t,
+              'border-4': selectedTicker === t,
             }"
             class="
               bg-white
@@ -200,9 +200,9 @@
         </dl>
         <hr class="w-full border-t border-gray-600 my-4" />
       </template>
-      <section v-if="sel" class="relative">
+      <section v-if="selectedTicker" class="relative">
         <h3 class="text-lg leading-6 font-medium text-gray-900 my-8">
-          {{ sel.name }} - USD
+          {{ selectedTicker.name }} - USD
         </h3>
         <div class="flex items-end border-gray-600 border-b border-l h-64">
           <div
@@ -214,7 +214,7 @@
         </div>
         <button
           type="button"
-          @click="sel = null"
+          @click="selectedTicker = null"
           class="absolute top-0 right-0"
         >
           <svg
@@ -259,6 +259,10 @@
 
 [ ] 11. Наличие в состоянии зависимых данных (не используется computed)
 
+Параллельно
+[X] 12. График сломан если везде одинаковые значения
+[ ] 13. При удалении тикера остается выбор
+
 */
 
 export default {
@@ -268,7 +272,7 @@ export default {
     return {
       ticker: "", // строка написанная в инпуте с аттрибутом v-model="ticker"
       tickers: [], // массив тикеров пришедших из localstorage
-      sel: null, // ячейка графика по умолчанию
+      selectedTicker: null, // ячейка графика по умолчанию
       graph: [], // график
       page: 1, // страница фильтрации
       filter: "", // строка которую ввел и в инпут фильтрации
@@ -329,9 +333,19 @@ export default {
     normalizedGraph() {
       const maxValue = Math.max(...this.graph);
       const minValue = Math.min(...this.graph);
+      if (maxValue === minValue) {
+        return this.graph.map(() => 50);
+      }
       return this.graph.map(
         (price) => 5 + ((price - minValue) * 95) / (maxValue - minValue)
       );
+    },
+
+    pageStateOptions() {
+      return {
+        filter: this.filter,
+        page: this.page,
+      };
     },
   },
 
@@ -345,7 +359,7 @@ export default {
         this.tickers.find((t) => t.name === tickerName).price = // обновляем прайс нашего тикера
           data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2); // (num).toFixed(digits) округляет цифры num после запятой до  количества переданного в (digits), num.toPrecision(digit) задает max количество цифр в числа num
         // currentTicker.price = data.USD;
-        if (this.sel?.name === tickerName) { // обновляем график
+        if (this.selectedTicker?.name === tickerName) { // обновляем график
           this.graph.push(data.USD); // передаем в массив графика стоимость криптовалюты для формирования новой ячейки
         }
       }, 3000);
@@ -358,13 +372,10 @@ export default {
         price: "-", // присваевается прайс затычка, до того как будет запрос на сервер о прайсе
       };
 
-      this.tickers.push(currentTicker); // добавляем в массив тикеров наш тикер
+      //this.tickers.push(currentTicker); // добавляем в массив тикеров наш тикер
+      this.tickers = [...this.tickers, currentTicker];
       this.filter = ""; // очистка фильтра
 
-      localStorage.setItem( // после обновления массива с тикерами, обновляем обьект в локалсторедж
-        "cryptonomicon-ticker",
-        JSON.stringify(this.tickers)
-      );
       this.subscribeToUpdates(currentTicker.name); // делаем запрос на сервер о налиции тикера и его прайса
 
       // console.log(this.tickers);
@@ -388,34 +399,48 @@ export default {
       checkCoin(); */
     },
     select(ticker) {
-      this.sel = ticker; // обновляем v-model sel = выбранный тикер
+      this.selectedTicker = ticker; // обновляем v-model sel = выбранный тикер
       // console.log(ticker); // Proxy{name: "BTC", price: "45203.35"}
-      this.graph = []; // обнуляем массив (очищаем график)
     },
     handleDelete(tickerToRemove) {
       this.tickers = this.tickers.filter((t) => t != tickerToRemove); // оставляем все тикеры кроме того что было введено в
+
+      if (this.selectedTicker === tickerToRemove) {
+        this.selectedTicker = null;
+      }
     },
   },
   // watch следит за значениями в модели и при их изменении вызывает функции которые мы создали ниже
   watch: {
+    selectedTicker() {
+      this.graph = []; // обнуляем массив (очищаем график)
+    },
+
+    tickers(oldvalue, newValue) {
+      // ? почему не сработал watch при добавлении тикера
+      console.log(oldvalue, newValue);
+      localStorage.setItem( // после обновления массива с тикерами, обновляем обьект в локалсторедж
+        "cryptonomicon-ticker",
+        JSON.stringify(this.tickers)
+      );
+    },
+    paginatedTickers() {
+      // если на странице 0 тикеров и номер страницы больше 1, уходим на 1 страницу назад
+      if (this.paginatedTickers.length === 0 && this.page > 1) {
+        this.page -= 1;
+      }
+    },
     // изменяем фильтр
     filter() {
       // смотрим за изменениями в фильтре, и сбрасываем страницу к 1,
       this.page = 1;
-      // Создание новой записи истории браузера
-      window.history.pushState(
-        null, // state
-        document.title, //cryptonomikon
-        // ${window.location.pathname} = /
-        `${window.location.pathname}?this.filter=${this.filter}&page=${this.page}`
-      );
     },
     // аналогично фильру изменяем страницу
-    page() {
+    pageStateOptions(value) {
       window.history.pushState(
         null,
         document.title,
-        `${window.location.pathname}?filter=${this.filter}&page=${this.page}`
+        `${window.location.pathname}?filter=${value.filter}&page=${value.page}`
       );
     },
   },
