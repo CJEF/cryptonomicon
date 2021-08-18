@@ -159,7 +159,7 @@
                 {{ t.name }} - USD
               </dt>
               <dd class="mt-1 text-3xl font-semibold text-gray-900">
-                {{ t.price }}
+                {{ formatPrice(t.price) }}
               </dd>
             </div>
             <div class="w-full border-t border-gray-200"></div>
@@ -246,24 +246,26 @@
 
 <script>
 /*
-[ ] 1. Одинаковый код в watch
+[X] 1. Одинаковый код в watch
 [ ] 2. При удалении остается подписка на обновления тикера
 [ ] 3. Количество запросов к API
 [ ] 4. Сильная связанность логики и данных которые влияют на отображение (запросы напряму внутри компонента)
 [ ] 5. первый watch запускает второй watch page()
 [ ] 6. Обработка ошибок API
-[ ] 7. При удалении тикера он не удаляется в LocalStorage
+[X] 7. При удалении тикера он не удаляется в LocalStorage
 [ ] 8. График ужасно выглядит когда много цен
 [ ] 9. localstorage и анонимные вкладки
 [ ] 10. Магические строки и числа (URL, 5000 мс задержки, ключ локал сторедж, количество страниц)
 
-[ ] 11. Наличие в состоянии зависимых данных (не используется computed)
+[X] 11. Наличие в состоянии зависимых данных (не используется computed)
 
 Параллельно
 [X] 12. График сломан если везде одинаковые значения
-[ ] 13. При удалении тикера остается выбор
+[X] 13. При удалении тикера остается выбор
 
 */
+
+import { loadTicker } from "./api";
 
 export default {
   name: "App",
@@ -285,6 +287,14 @@ export default {
       new URL(window.location).searchParams.entries()
     ); // {"this.filter ": " ", page: "1"}
 
+    const VALID_KEYS = ["filter", "keys"];
+
+    VALID_KEYS.forEach((key) => {
+      if (windowData[key]) {
+        this[key] = windowData[key];
+      }
+    });
+
     console.log(windowData);
 
     if (windowData.filter) {
@@ -300,10 +310,12 @@ export default {
     // если есть тикерс дата парсим ее и делаем запрос по прайсу на данные тикеры из tickers
     if (tickersData) {
       this.tickers = JSON.parse(tickersData);
-      this.tickers.forEach((ticker) => {
+      /*this.tickers.forEach((ticker) => {
         this.subscribeToUpdates(ticker.name);
-      });
+      }); */
     }
+
+    setInterval(this.updateTickers, 4000); // vue атвоматически выполняет операцию bind для всех методов, поэтому и работает this
   },
 
   computed: {
@@ -320,14 +332,15 @@ export default {
       /* const filteredTickers = this.tickers.filter((ticker) => { // ! кривые скобки ошибка?
         ticker.name.includes(this.filter);
       }); */
-      return this.tickers.filter(ticker => ticker.name.includes(this.filter));
+      return this.tickers.filter((ticker) => ticker.name.includes(this.filter));
     },
 
     paginatedTickers() {
       return this.filteredTickers.slice(this.startIndex, this.endIndex);
     },
 
-    hasNextPage() { // проверяется с помощью сравнения номера последнего тикера на странице с tickers.length
+    hasNextPage() {
+      // проверяется с помощью сравнения номера последнего тикера на странице с tickers.length
       return this.filteredTickers.length > this.endIndex; // если у нас отфильрованных тикеров больше 6, вернет true
     },
     normalizedGraph() {
@@ -350,20 +363,39 @@ export default {
   },
 
   methods: {
-    subscribeToUpdates(tickerName) {  // подписываемся для обновления прайса
-      setInterval(async () => {
-        const f = await fetch( // запрос на сервер по переданному названию в инпут
-          `https://min-api.cryptocompare.com/data/price?fsym=${tickerName}&tsyms=USD&api_key=6138e504f3195d7a7e9a501c99b2fc820243ef999b2f010c280f63805b44d7b6`
-        );
-        const data = await f.json(); // ответ сервера
-        this.tickers.find((t) => t.name === tickerName).price = // обновляем прайс нашего тикера
-          data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2); // (num).toFixed(digits) округляет цифры num после запятой до  количества переданного в (digits), num.toPrecision(digit) задает max количество цифр в числа num
-        // currentTicker.price = data.USD;
-        if (this.selectedTicker?.name === tickerName) { // обновляем график
-          this.graph.push(data.USD); // передаем в массив графика стоимость криптовалюты для формирования новой ячейки
+    formatPrice(price) {
+      console.log(price);
+      return price > 1 ? price.toFixed(2) : price.toPrecision(2);
+    },
+
+    async updateTickers() {
+      if (!this.tickers.length) {
+        return;
+      }
+
+      // подписываемся для обновления прайса
+      const exchangeData = await loadTicker(this.tickers.map(t => t.name)); // прилетают тикеры и берем их название
+      console.log("exchangeData", exchangeData);
+      this.tickers.forEach((ticker) => {
+        // мутировать массив нормально, так как вью реактивен, и не  нужно изменять массив как в реакте
+        const price = exchangeData[ticker.name.toUpperCase()];
+        if (!price) {
+          ticker.price = "-";
+          return;
         }
-      }, 3000);
-      this.ticker = ""; // очищаем поле с инпутом тикера
+        const normalizedPrice = 1 / price;
+        ticker.price = normalizedPrice;
+      });
+
+      /* this.tickers.find((t) => t.name === tickerName).price = // обновляем прайс нашего тикера
+        exchangeData.USD > 1
+          ? exchangeData.USD.toFixed(2)
+          : exchangeData.USD.toPrecision(2); // (num).toFixed(digits) округляет цифры num после запятой до  количества переданного в (digits), num.toPrecision(digit) задает max количество цифр в числа num
+      // currentTicker.price = exchangeData.USD;
+      if (this.selectedTicker?.name === tickerName) {
+        // обновляем график
+        this.graph.push(exchangeData.USD); // передаем в массив графика стоимость криптовалюты для формирования новой ячейки
+      } */
     },
 
     add() {
@@ -376,7 +408,7 @@ export default {
       this.tickers = [...this.tickers, currentTicker];
       this.filter = ""; // очистка фильтра
 
-      this.subscribeToUpdates(currentTicker.name); // делаем запрос на сервер о налиции тикера и его прайса
+      //this.subscribeToUpdates(currentTicker.name); // делаем запрос на сервер о налиции тикера и его прайса
 
       // console.log(this.tickers);
 
@@ -419,7 +451,8 @@ export default {
     tickers(oldvalue, newValue) {
       // ? почему не сработал watch при добавлении тикера
       console.log(oldvalue, newValue);
-      localStorage.setItem( // после обновления массива с тикерами, обновляем обьект в локалсторедж
+      localStorage.setItem(
+        // после обновления массива с тикерами, обновляем обьект в локалсторедж
         "cryptonomicon-ticker",
         JSON.stringify(this.tickers)
       );
