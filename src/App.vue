@@ -265,7 +265,7 @@
 
 */
 
-import { loadTicker } from "./api";
+import { loadTickers } from "./api";
 
 export default {
   name: "App",
@@ -364,7 +364,7 @@ export default {
 
   methods: {
     formatPrice(price) {
-      console.log(price);
+      if (price === "-") {return price;}
       return price > 1 ? price.toFixed(2) : price.toPrecision(2);
     },
 
@@ -374,17 +374,12 @@ export default {
       }
 
       // подписываемся для обновления прайса
-      const exchangeData = await loadTicker(this.tickers.map(t => t.name)); // прилетают тикеры и берем их название
+      const exchangeData = await loadTickers(this.tickers.map(t => t.name)); // прилетают тикеры и берем их название
       console.log("exchangeData", exchangeData);
       this.tickers.forEach((ticker) => {
         // мутировать массив нормально, так как вью реактивен, и не  нужно изменять массив как в реакте
         const price = exchangeData[ticker.name.toUpperCase()];
-        if (!price) {
-          ticker.price = "-";
-          return;
-        }
-        const normalizedPrice = 1 / price;
-        ticker.price = normalizedPrice;
+        ticker.price = price ?? "-";
       });
 
       /* this.tickers.find((t) => t.name === tickerName).price = // обновляем прайс нашего тикера
