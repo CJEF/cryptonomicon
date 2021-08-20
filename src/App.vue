@@ -265,7 +265,7 @@
 
 */
 
-import { loadTickers } from "./api";
+import { subscribeToTicker } from "./api";
 
 export default {
   name: "App",
@@ -313,6 +313,9 @@ export default {
       /*this.tickers.forEach((ticker) => {
         this.subscribeToUpdates(ticker.name);
       }); */
+      this.tickers.forEach(ticker => {
+        subscribeToTicker(ticker.name, () => {});
+      });
     }
 
     setInterval(this.updateTickers, 4000); // vue атвоматически выполняет операцию bind для всех методов, поэтому и работает this
@@ -369,18 +372,18 @@ export default {
     },
 
     async updateTickers() {
-      if (!this.tickers.length) {
+      /* if (!this.tickers.length) {
         return;
-      }
+      } */
 
       // подписываемся для обновления прайса
-      const exchangeData = await loadTickers(this.tickers.map(t => t.name)); // прилетают тикеры и берем их название
+      /* const exchangeData = await loadTickers(this.tickers.map(t => t.name)); // прилетают тикеры и берем их название
       console.log("exchangeData", exchangeData);
       this.tickers.forEach((ticker) => {
         // мутировать массив нормально, так как вью реактивен, и не  нужно изменять массив как в реакте
         const price = exchangeData[ticker.name.toUpperCase()];
         ticker.price = price ?? "-";
-      });
+      }); */
 
       /* this.tickers.find((t) => t.name === tickerName).price = // обновляем прайс нашего тикера
         exchangeData.USD > 1
@@ -402,6 +405,8 @@ export default {
       //this.tickers.push(currentTicker); // добавляем в массив тикеров наш тикер
       this.tickers = [...this.tickers, currentTicker];
       this.filter = ""; // очистка фильтра
+      subscribeToTicker(this.ticker.name, () => {});
+
 
       //this.subscribeToUpdates(currentTicker.name); // делаем запрос на сервер о налиции тикера и его прайса
 
