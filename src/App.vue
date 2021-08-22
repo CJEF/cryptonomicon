@@ -265,7 +265,7 @@
 
 */
 
-import { subscribeToTicker } from "./api";
+import { subscribeToTicker, unsubscribeFromTicker } from "./api";
 
 export default {
   name: "App",
@@ -314,7 +314,7 @@ export default {
         this.subscribeToUpdates(ticker.name);
       }); */
       this.tickers.forEach(ticker => {
-        subscribeToTicker(ticker.name, () => {});
+        subscribeToTicker(ticker.name, (newPrice) => {this.updateTicker(ticker.name, newPrice)});
       });
     }
 
@@ -366,6 +366,15 @@ export default {
   },
 
   methods: {
+    updateTicker(tickerName, price) {
+      this.tickers.filter(t => t.name === tickerName).forEach(t => {
+          if (t === this.selectedTicker) {
+            this.graph.push(price)
+          }
+          t.price = price
+        })
+    },
+
     formatPrice(price) {
       if (price === "-") {return price;}
       return price > 1 ? price.toFixed(2) : price.toPrecision(2);
@@ -404,8 +413,12 @@ export default {
 
       //this.tickers.push(currentTicker); // добавляем в массив тикеров наш тикер
       this.tickers = [...this.tickers, currentTicker];
+      this.ticker = "";
       this.filter = ""; // очистка фильтра
-      subscribeToTicker(this.ticker.name, () => {});
+      subscribeToTicker(currentTicker.name, newPrice => 
+        this.updateTicker(currentTicker.name, newPrice)
+      );
+      // subscribeToTicker(this.ticker.name, () => {});
 
 
       //this.subscribeToUpdates(currentTicker.name); // делаем запрос на сервер о налиции тикера и его прайса
@@ -440,6 +453,7 @@ export default {
       if (this.selectedTicker === tickerToRemove) {
         this.selectedTicker = null;
       }
+      unsubscribeFromTicker(tickerToRemove.name);
     },
   },
   // watch следит за значениями в модели и при их изменении вызывает функции которые мы создали ниже
