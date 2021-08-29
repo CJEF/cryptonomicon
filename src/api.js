@@ -7,13 +7,23 @@ const socket = new WebSocket(
 const tickersHandlers = new Map();
 
 const AGGREGATE_INDEX = "5";
+const INVALID_SUB = "500";
 
 socket.addEventListener("message", e => {
   const {
     TYPE: type,
     FROMSYMBOL: currency,
     PRICE: newPrice,
+    PARAMETER: params,
   } = JSON.parse(e.data);
+  console.log(JSON.parse(e.data));
+  /* if (type === INVALID_SUB) {
+    console.log(params); // PARAMETER: "5~CCCAGG~BTCD~USD"
+    console.log(subscribeToBTCOnWs({
+      action: "SubAdd",
+      subs: [`${params}`],
+    }));
+  } */
   if (type !== AGGREGATE_INDEX || newPrice === undefined) {
     return;
   }
@@ -23,31 +33,10 @@ socket.addEventListener("message", e => {
 
 // TODO: REFACTOR SEARCH PARAMS
 
-/* export const loadTickers = () => {
-  if (tickersHandlers.size === 0) {
-    return;
-  }
-
-  fetch(
-    `https://min-api.cryptocompare.com/data/pricemulti?fsyms=${[
-      ...tickersHandlers.keys(),
-    ].join(",")}&tsyms=USD&api_key=${API_KEY}`
-  )
-    .then((r) => r.json())
-    .then((rawData) => {
-      //Трансформации объектов. С Object.fromEntries, обратным ему методом Object.entries() и методами манипулирования массивами вы можете преобразовывать объекты следующим образом:
-      const updatedPrices = Object.fromEntries(
-        Object.entries(rawData).map(([key, value]) => [key, value.USD])
-      ); //  Object.entries разделит пары ключ со значение в обьекте, на отдельные массивы
-      Object.entries(updatedPrices).forEach(([currency, newPrice]) => {
-        const handlers = tickersHandlers.get(currency) ?? [];
-        handlers.forEach((fn) => fn(newPrice));
-      });
-    });
-}; */
 
 function sendToWebSocket(message) {
   const stringifiedMessage = JSON.stringify(message);
+  // console.log(stringifiedMessage);
 
   if (socket.readyState === WebSocket.OPEN) {
     socket.send(stringifiedMessage);
@@ -62,7 +51,13 @@ function sendToWebSocket(message) {
   );
 }
 
-function subscribeToTickerOnWs(ticker) {
+function subscribeToBTCOnWs(ticker) {
+  sendToWebSocket({
+    action: "SubAdd",
+    subs: [`5~CCCAGG~${ticker}~BTC`],
+  });
+}
+function subscribeToUSDOnWs(ticker) {
   sendToWebSocket({
     action: "SubAdd",
     subs: [`5~CCCAGG~${ticker}~USD`],
@@ -76,22 +71,12 @@ function unsubscribeFromTickerOnWs(ticker) {
 }
 
 export const subscribeToTicker = (ticker, cb) => {
-  /* if(!ticker.has(ticker)) {
-    tickersHandlers.set(ticker, []);
-  } */
   const subscribers = tickersHandlers.get(ticker) || []; // создаем константу с массивом из названий тикеров
   tickersHandlers.set(ticker, [...subscribers, cb]); // устанавливаем в массив тикеров новые тикеры, set принимает два параметра, первый key, второй value
-  subscribeToTickerOnWs(ticker);
+  subscribeToUSDOnWs(ticker)
 };
 
 export const unSubscribeFromTicker = (ticker) => {
-  /* const subscribers = tickersHandlers.get(ticker) || [];
-  tickersHandlers.set(
-    ticker,
-    subscribers.filter((fn) => fn !== cb)
-  ); */
   tickersHandlers.delete(ticker);
   unsubscribeFromTickerOnWs(ticker);
 };
-
-/* setInterval(loadTickers, 5000); */
